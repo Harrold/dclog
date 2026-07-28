@@ -1,6 +1,7 @@
 #ifndef DOCKERCLIENT_H
 #define DOCKERCLIENT_H
 
+#include <QByteArray>
 #include <QObject>
 #include <QString>
 #include <QVector>
@@ -29,10 +30,12 @@ signals:
 private slots:
     void handlePollFinished();
     void handleLogOutput();
+    void flushLogBuffer();
 
 private:
     QProcess *m_pollProcess = nullptr;
     QProcess *m_logProcess = nullptr;
+    QByteArray m_logBuffer;
 };
 
 #endif // DOCKERCLIENT_H
