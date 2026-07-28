@@ -5,6 +5,8 @@
 #include <QJsonParseError>
 #include <QProcess>
 
+#include "logformatter.h"
+
 DockerClient::DockerClient(QObject *parent)
     : QObject(parent)
 {
@@ -60,10 +62,12 @@ void DockerClient::handlePollFinished()
 void DockerClient::streamLogs(const QString &containerId)
 {
     stopLogs();
+    m_logBuffer.clear();
 
     m_logProcess = new QProcess(this);
     m_logProcess->setProcessChannelMode(QProcess::MergedChannels);
     connect(m_logProcess, &QProcess::readyRead, this, &DockerClient::handleLogOutput);
+    connect(m_logProcess, &QProcess::finished, this, &DockerClient::flushLogBuffer);
     m_logProcess->start(QStringLiteral("docker"),
                          {QStringLiteral("logs"), QStringLiteral("-f"), QStringLiteral("--tail"),
                           QStringLiteral("200"), containerId});
@@ -74,8 +78,31 @@ void DockerClient::handleLogOutput()
     if (!m_logProcess)
         return;
 
-    const QByteArray data = m_logProcess->readAll();
-    emit logLine(QString::fromUtf8(data));
+    m_logBuffer.append(m_logProcess->readAll());
+
+    QString formatted;
+    int newlineIndex;
+    while ((newlineIndex = m_logBuffer.indexOf('\n')) != -1) {
+        QByteArray rawLine = m_logBuffer.left(newlineIndex);
+        m_logBuffer.remove(0, newlineIndex + 1);
+        if (rawLine.endsWith('\r'))
+            rawLine.chop(1);
+
+        formatted += LogFormatter::formatLine(rawLine);
+        formatted += QLatin1Char('\n');
+    }
+
+    if (!formatted.isEmpty())
+        emit logLine(formatted);
+}
+
+void DockerClient::flushLogBuffer()
+{
+    if (m_logBuffer.isEmpty())
+        return;
+
+    emit logLine(LogFormatter::formatLine(m_logBuffer) + QLatin1Char('\n'));
+    m_logBuffer.clear();
 }
 
 void DockerClient::stopLogs()

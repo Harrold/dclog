@@ -15,6 +15,8 @@ qt_add_executable(dclog
     containermodel.h
     dockerclient.cpp
     dockerclient.h
+    logformatter.cpp
+    logformatter.h
 )
 
 target_link_libraries(dclog
